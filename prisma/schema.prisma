@@ -1,0 +1,95 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model RCIPEmployer {
+  id            String    @id @default(cuid())
+  name          String
+  website       String?
+  community     Community @relation(fields: [communityId], references: [id])
+  communityId   String
+  jobs          Job[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  isVerified    Boolean   @default(false)
+  contactEmail  String?
+  contactPhone  String?
+  address       String?
+}
+
+model Job {
+  id          String       @id @default(cuid())
+  title       String
+  description String
+  employer    RCIPEmployer @relation(fields: [employerId], references: [id])
+  employerId  String
+  noc         String
+  teerLevel   Int
+  salary      Float?
+  isRemote    Boolean      @default(false)
+  location    String
+  postedDate  DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  isActive    Boolean      @default(true)
+}
+
+model Community {
+  id                String        @id @default(cuid())
+  name             String
+  province         String
+  website          String?
+  employers        RCIPEmployer[]
+  restrictions     String?
+  approvalRate     Float?
+  costOfLiving     Float?
+  immigrantSupport String?
+  jobDemand        Float?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+}
+
+model ApplicationProcess {
+  id            String         @id @default(cuid())
+  userId        String
+  stage         ProcessStage
+  community     Community      @relation(fields: [communityId], references: [id])
+  communityId   String
+  documents     Document[]
+  endorsementDate DateTime?
+  medicalDate    DateTime?
+  biometricsDate DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  estimatedPRDate DateTime?
+}
+
+model Document {
+  id            String    @id @default(cuid())
+  type          String
+  status        String
+  fileName      String
+  uploadDate    DateTime  @default(now())
+  validUntil    DateTime?
+  process       ApplicationProcess @relation(fields: [processId], references: [id])
+  processId     String
+  aiReviewScore Float?
+  aiComments    String?
+}
+
+enum ProcessStage {
+  JOB_SEARCH
+  JOB_OFFER
+  EMPLOYER_APPLICATION
+  COMMUNITY_ENDORSEMENT
+  PR_APPLICATION
+  WORK_PERMIT
+  COMPLETED
+}
