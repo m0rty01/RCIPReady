@@ -1,0 +1,14 @@
+correct the mistakes > make the app run locally
+commit the corrected code
+
+Deploy the code in the following manner:
+
+Component	Planned Platform
+Frontend code repository	GitHub
+Database & backend APIs	Supabase
+Authentication, Realtime, Storage	Supabase
+Automatic deployment	Vercel / Netlify / Supabase Edge Functions
+Version control	GitHub
+
+
+check if the above deployment is correct by adding the zip file in the github chat here : https://chatgpt.com/c/6891adc4-cb14-8003-a275-95717a122f9f

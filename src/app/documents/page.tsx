@@ -1,223 +1,193 @@
 'use client';
 
 import { useState } from 'react';
-import { useDropzone } from 'react-dropzone';
+import Card from '@/components/ui/Card';
+import Button from '@/components/ui/Button';
 
-interface ValidationResult {
-  isValid: boolean;
-  issues: string[];
-  expiryDate: string | null;
-  scores?: Record<string, number>;
-  suggestions: string[];
-  confidence: number;
+interface DocumentType {
+  id: string;
+  title: string;
+  description: string;
+  acceptedFormats: string[];
 }
 
-const DOCUMENT_TYPES = [
+const documentTypes: DocumentType[] = [
   {
-    id: 'IELTS',
-    name: 'IELTS Test Results',
-    description: 'Language test results (must be less than 2 years old)',
-    acceptedFormats: ['.pdf'],
+    id: 'language',
+    title: 'Language Test Results',
+    description: 'Must be less than 2 years old',
+    acceptedFormats: ['pdf'],
   },
   {
-    id: 'ECA',
-    name: 'Educational Credential Assessment',
-    description: 'ECA report from a designated organization',
-    acceptedFormats: ['.pdf'],
+    id: 'eca',
+    title: 'ECA Report',
+    description: 'Educational Credential Assessment from a designated organization',
+    acceptedFormats: ['pdf'],
   },
   {
-    id: 'PROOF_OF_FUNDS',
-    name: 'Proof of Funds',
+    id: 'financial',
+    title: 'Proof of Funds',
     description: 'Bank statements or certificates showing required settlement funds',
-    acceptedFormats: ['.pdf'],
+    acceptedFormats: ['pdf'],
   },
   {
-    id: 'WORK_EXPERIENCE',
-    name: 'Work Experience Documents',
+    id: 'employment',
+    title: 'Employment Documents',
     description: 'Reference letters, employment contracts, pay stubs',
-    acceptedFormats: ['.pdf'],
+    acceptedFormats: ['pdf'],
   },
 ];
 
-export default function DocumentValidator() {
-  const [selectedType, setSelectedType] = useState<string>('');
-  const [file, setFile] = useState<File | null>(null);
-  const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+export default function DocumentsPage() {
+  const [selectedFiles, setSelectedFiles] = useState<{ [key: string]: File | null }>({});
+  const [isValidating, setIsValidating] = useState(false);
+  const [validationResults, setValidationResults] = useState<{ [key: string]: string | null }>({});
 
-  const { getRootProps, getInputProps } = useDropzone({
-    accept: {
-      'application/pdf': ['.pdf'],
-    },
-    maxFiles: 1,
-    onDrop: (acceptedFiles) => {
-      setFile(acceptedFiles[0]);
-      setValidationResult(null);
-      setError(null);
-    },
-  });
+  const handleFileChange = (docType: string, file: File | null) => {
+    setSelectedFiles(prev => ({
+      ...prev,
+      [docType]: file
+    }));
+    // Clear validation result when new file is selected
+    setValidationResults(prev => ({
+      ...prev,
+      [docType]: null
+    }));
+  };
 
-  const validateDocument = async () => {
-    if (!file || !selectedType) {
-      setError('Please select a document type and upload a file');
-      return;
-    }
-
+  const handleValidate = async () => {
+    setIsValidating(true);
     try {
-      setLoading(true);
-      setError(null);
-
+      // Create FormData with all selected files
       const formData = new FormData();
-      formData.append('file', file);
-      formData.append('type', selectedType);
+      Object.entries(selectedFiles).forEach(([type, file]) => {
+        if (file) {
+          formData.append(type, file);
+        }
+      });
 
       const response = await fetch('/api/documents/validate', {
         method: 'POST',
         body: formData,
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to validate document');
-      }
+      if (!response.ok) throw new Error('Validation failed');
 
-      const result = await response.json();
-      setValidationResult(result);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      const results = await response.json();
+      setValidationResults(results);
+    } catch (error) {
+      console.error('Validation error:', error);
     } finally {
-      setLoading(false);
+      setIsValidating(false);
     }
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <h1 className="text-3xl font-bold mb-8">RCIP Document Validator</h1>
-
-      {/* Document Type Selection */}
-      <div className="bg-white p-6 rounded-lg shadow mb-8">
-        <h2 className="text-xl font-semibold mb-4">Select Document Type</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {DOCUMENT_TYPES.map((type) => (
-            <div
-              key={type.id}
-              className={`p-4 border rounded-lg cursor-pointer ${
-                selectedType === type.id
-                  ? 'border-indigo-600 bg-indigo-50'
-                  : 'border-gray-200 hover:border-indigo-300'
-              }`}
-              onClick={() => setSelectedType(type.id)}
-            >
-              <h3 className="font-semibold">{type.name}</h3>
-              <p className="text-sm text-gray-600">{type.description}</p>
-              <p className="text-xs text-gray-500 mt-1">
-                Accepted formats: {type.acceptedFormats.join(', ')}
-              </p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* File Upload */}
-      <div className="bg-white p-6 rounded-lg shadow mb-8">
-        <h2 className="text-xl font-semibold mb-4">Upload Document</h2>
-        <div
-          {...getRootProps()}
-          className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer"
-        >
-          <input {...getInputProps()} />
-          <p>{file ? file.name : 'Drag & drop your document here, or click to select'}</p>
-        </div>
-      </div>
-
-      {/* Validation Button */}
-      <div className="flex justify-center mb-8">
-        <button
-          onClick={validateDocument}
-          disabled={loading || !file || !selectedType}
-          className={`px-6 py-3 rounded-md text-white font-semibold ${
-            loading || !file || !selectedType
-              ? 'bg-gray-400 cursor-not-allowed'
-              : 'bg-indigo-600 hover:bg-indigo-500'
-          }`}
-        >
-          {loading ? 'Validating...' : 'Validate Document'}
-        </button>
-      </div>
-
-      {/* Error Message */}
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-8 text-red-700">
-          {error}
-        </div>
-      )}
-
-      {/* Validation Results */}
-      {validationResult && (
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h2 className="text-xl font-semibold mb-4">Validation Results</h2>
-          
-          {/* Overall Status */}
-          <div className={`p-4 rounded-lg mb-4 ${
-            validationResult.isValid ? 'bg-green-50' : 'bg-red-50'
-          }`}>
-            <p className={`font-semibold ${
-              validationResult.isValid ? 'text-green-700' : 'text-red-700'
-            }`}>
-              {validationResult.isValid ? 'Document Valid' : 'Document Invalid'}
-            </p>
-            <p className="text-sm text-gray-600">
-              Confidence Score: {validationResult.confidence}%
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="space-y-8">
+          {/* Header */}
+          <div className="text-center">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+              RCIP Document Validator
+            </h1>
+            <p className="mt-2 text-lg text-gray-600 dark:text-gray-300">
+              Upload your documents for validation against RCIP requirements
             </p>
           </div>
 
-          {/* Issues */}
-          {validationResult.issues.length > 0 && (
-            <div className="mb-4">
-              <h3 className="font-semibold mb-2">Issues Found:</h3>
-              <ul className="list-disc list-inside space-y-1">
-                {validationResult.issues.map((issue, index) => (
-                  <li key={index} className="text-red-600">{issue}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {/* Expiry Date */}
-          {validationResult.expiryDate && (
-            <div className="mb-4">
-              <h3 className="font-semibold mb-2">Expiry Date:</h3>
-              <p>{new Date(validationResult.expiryDate).toLocaleDateString()}</p>
-            </div>
-          )}
-
-          {/* Scores */}
-          {validationResult.scores && Object.keys(validationResult.scores).length > 0 && (
-            <div className="mb-4">
-              <h3 className="font-semibold mb-2">Scores:</h3>
-              <div className="grid grid-cols-2 gap-2">
-                {Object.entries(validationResult.scores).map(([key, value]) => (
-                  <div key={key} className="bg-gray-50 p-2 rounded">
-                    <span className="font-medium">{key}:</span> {value}
+          {/* Document Upload Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {documentTypes.map((doc) => (
+              <Card key={doc.id} className="relative">
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+                      {doc.title}
+                    </h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      {doc.description}
+                    </p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                      Accepted formats: {doc.acceptedFormats.join(', ')}
+                    </p>
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
 
-          {/* Suggestions */}
-          {validationResult.suggestions.length > 0 && (
-            <div>
-              <h3 className="font-semibold mb-2">Suggestions for Improvement:</h3>
-              <ul className="list-disc list-inside space-y-1">
-                {validationResult.suggestions.map((suggestion, index) => (
-                  <li key={index} className="text-indigo-600">{suggestion}</li>
-                ))}
-              </ul>
-            </div>
-          )}
+                  <div className="space-y-2">
+                    <label
+                      className={`
+                        relative block w-full rounded-lg border-2 border-dashed p-4 text-center
+                        hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2
+                        ${selectedFiles[doc.id] 
+                          ? 'border-green-500 dark:border-green-600' 
+                          : 'border-gray-300 dark:border-gray-600'}
+                        ${validationResults[doc.id] === 'error' ? 'border-red-500 dark:border-red-600' : ''}
+                        cursor-pointer
+                      `}
+                    >
+                      <input
+                        type="file"
+                        className="sr-only"
+                        accept=".pdf"
+                        onChange={(e) => handleFileChange(doc.id, e.target.files?.[0] || null)}
+                      />
+                      <div className="space-y-1">
+                        {selectedFiles[doc.id] ? (
+                          <div className="text-sm text-gray-700 dark:text-gray-300">
+                            {selectedFiles[doc.id]?.name}
+                          </div>
+                        ) : (
+                          <>
+                            <svg
+                              className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500"
+                              stroke="currentColor"
+                              fill="none"
+                              viewBox="0 0 48 48"
+                              aria-hidden="true"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M8 14v20c0 4.418 3.582 8 8 8h16c4.418 0 8-3.582 8-8V14M8 14c0-4.418 3.582-8 8-8h16c4.418 0 8 3.582 8 8M8 14h32"
+                              />
+                            </svg>
+                            <span className="mt-2 block text-sm text-gray-600 dark:text-gray-400">
+                              Click to upload or drag and drop
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </label>
+
+                    {validationResults[doc.id] && (
+                      <div className={`text-sm ${
+                        validationResults[doc.id] === 'error' 
+                          ? 'text-red-600 dark:text-red-400' 
+                          : 'text-green-600 dark:text-green-400'
+                      }`}>
+                        {validationResults[doc.id]}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+
+          {/* Validation Button */}
+          <div className="flex justify-center">
+            <Button
+              onClick={handleValidate}
+              isLoading={isValidating}
+              disabled={Object.keys(selectedFiles).length === 0}
+              size="lg"
+            >
+              Validate Documents
+            </Button>
+          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }

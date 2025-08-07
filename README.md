@@ -126,6 +126,45 @@ The deployment script automatically sets up SSL using Let's Encrypt. If you need
 sudo certbot --nginx -d your-domain.com
 ```
 
+### SSL Certificate Troubleshooting
+
+If you encounter SSL certificate issues, follow these steps:
+
+1. **Verify Domain DNS Configuration**
+   - Ensure your domain's A record points to your server's IP address
+   - Allow 24-48 hours for DNS changes to propagate fully
+   - Verify DNS propagation: `dig your-domain.com +short`
+
+2. **Check Domain Accessibility**
+   - Your domain must be publicly accessible
+   - Verify Nginx is running: `sudo systemctl status nginx`
+   - Test domain accessibility: `curl -I http://your-domain.com`
+
+3. **Common Certificate Errors**
+   - "unauthorized" or "connection refused": Check DNS and firewall settings
+   - "nginx configuration changes": Ensure Nginx config is valid with `sudo nginx -t`
+   - "challenge failed": Make sure ports 80 and 443 are open and accessible
+
+4. **Manual Certificate Verification**
+```bash
+# Test certificate acquisition in dry-run mode
+sudo certbot --nginx -d your-domain.com --dry-run
+
+# Check certificate status
+sudo certbot certificates
+
+# Force certificate renewal
+sudo certbot renew --force-renewal
+```
+
+5. **Firewall Configuration**
+```bash
+# Ensure required ports are open
+sudo ufw status
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+```
+
 ## Service Management
 
 The application runs as a systemd service. Common commands:

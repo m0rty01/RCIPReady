@@ -6,15 +6,32 @@ import CommunityInsights from '@/components/communities/CommunityInsights';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 
+interface Community {
+  id: string;
+  name: string;
+  province: string;
+  matchScore: number;
+  jobOpportunities: number;
+  costOfLivingIndex: number;
+  immigrantSupportScore: number;
+  reasons: string[];
+  considerations: string[];
+  restrictions?: string[];
+}
+
 export default function CommunitiesPage() {
   const [isLoading, setIsLoading] = useState(true);
-  const [communities, setCommunities] = useState<any[]>([]);
+  const [communities, setCommunities] = useState<Community[]>([]);
   const [selectedCommunity, setSelectedCommunity] = useState<string | null>(null);
   const [insights, setInsights] = useState<any | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchCommunities = async () => {
       try {
+        setIsLoading(true);
+        setError(null);
+
         const response = await fetch('/api/communities/recommend', {
           method: 'POST',
           headers: {
@@ -36,10 +53,16 @@ export default function CommunitiesPage() {
             education: 'Bachelor\'s Degree',
           }),
         });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch communities');
+        }
+
         const data = await response.json();
-        setCommunities(data);
+        setCommunities(Array.isArray(data) ? data : []);
       } catch (error) {
         console.error('Error fetching communities:', error);
+        setError(error instanceof Error ? error.message : 'Failed to load communities');
       } finally {
         setIsLoading(false);
       }
@@ -65,10 +88,16 @@ export default function CommunitiesPage() {
           },
         }),
       });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch community insights');
+      }
+
       const data = await response.json();
       setInsights(data.insights);
     } catch (error) {
       console.error('Error fetching community insights:', error);
+      setError(error instanceof Error ? error.message : 'Failed to load community insights');
     }
   };
 
@@ -79,6 +108,14 @@ export default function CommunitiesPage() {
           <div key={n} className="h-64 bg-gray-200 rounded-lg"></div>
         ))}
       </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card>
+        <div className="text-center text-red-600 py-8">{error}</div>
+      </Card>
     );
   }
 
@@ -102,22 +139,33 @@ export default function CommunitiesPage() {
 
   return (
     <div className="space-y-6">
-      <Card title="Recommended Communities">
-        <p className="text-sm text-gray-500 mb-6">
-          These communities are ranked based on your profile, job opportunities,
-          and success potential.
-        </p>
+      <Card>
+        <div className="prose max-w-none mb-6">
+          <h1>RCIP Communities</h1>
+          <p>
+            Find the best RCIP community for your profile. Communities are ranked
+            based on job opportunities, cost of living, and immigration support.
+          </p>
+        </div>
       </Card>
 
-      <div className="grid grid-cols-1 gap-6">
-        {communities.map((community) => (
-          <CommunityCard
-            key={community.id}
-            community={community}
-            onViewDetails={handleViewDetails}
-          />
-        ))}
-      </div>
+      {communities.length > 0 ? (
+        <div className="grid grid-cols-1 gap-6">
+          {communities.map((community) => (
+            <CommunityCard
+              key={community.id}
+              community={community}
+              onViewDetails={handleViewDetails}
+            />
+          ))}
+        </div>
+      ) : (
+        <Card>
+          <div className="text-center py-12">
+            <p className="text-gray-500">No communities found</p>
+          </div>
+        </Card>
+      )}
     </div>
   );
 }

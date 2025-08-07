@@ -1,59 +1,71 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { ProcessTracker } from '@/services/processTracker';
-import { ProcessStage } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 
-export async function POST(request: NextRequest) {
+export async function GET(request: NextRequest) {
+  console.log('Starting process API...');
+  console.log('Environment:', {
+    DATABASE_URL: process.env.DATABASE_URL ? 'Set' : 'Not set',
+    DIRECT_URL: process.env.DIRECT_URL ? 'Set' : 'Not set',
+  });
+
   try {
-    const body = await request.json();
-    const { userId, communityId, initialStage } = body;
-
-    if (!userId || !communityId) {
+    // Test database connection first
+    try {
+      console.log('Testing database connection...');
+      await prisma.$connect();
+      console.log('Database connection successful');
+    } catch (dbError: any) {
+      console.error('Database connection error:', {
+        message: dbError.message,
+        code: dbError.code,
+        meta: dbError.meta,
+      });
       return NextResponse.json(
-        { error: 'User ID and community ID are required' },
+        { error: `Database connection failed: ${dbError.message}` },
+        { status: 500 }
+      );
+    }
+
+    const { searchParams } = new URL(request.url);
+    const userId = searchParams.get('userId');
+
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'userId is required' },
         { status: 400 }
       );
     }
 
-    const timeline = await ProcessTracker.createTimeline(
-      userId,
-      communityId,
-      initialStage as ProcessStage
-    );
+    const process = await prisma.process.findFirst({
+      where: { userId },
+      orderBy: { updatedAt: 'desc' },
+    });
 
-    return NextResponse.json(timeline);
-  } catch (error) {
-    console.error('Error creating process timeline:', error);
-    return NextResponse.json(
-      { error: 'Failed to create process timeline' },
-      { status: 500 }
-    );
-  }
-}
-
-export async function PUT(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { userId, communityId, stage } = body;
-
-    if (!userId || !communityId || !stage) {
-      return NextResponse.json(
-        { error: 'User ID, community ID, and stage are required' },
-        { status: 400 }
-      );
+    if (!process) {
+      // Create initial process for the user
+      const newProcess = await prisma.process.create({
+        data: {
+          userId,
+          stage: 'PROFILE_CREATION',
+          status: 'In Progress',
+        },
+      });
+      return NextResponse.json(newProcess);
     }
 
-    const timeline = await ProcessTracker.updateStage(
-      userId,
-      communityId,
-      stage as ProcessStage
-    );
-
-    return NextResponse.json(timeline);
-  } catch (error) {
-    console.error('Error updating process stage:', error);
+    return NextResponse.json(process);
+  } catch (error: any) {
+    console.error('Error in process API:', error);
     return NextResponse.json(
-      { error: 'Failed to update process stage' },
+      { error: error.message || 'Internal server error' },
       { status: 500 }
     );
+  } finally {
+    try {
+      await prisma.$disconnect();
+      console.log('Database disconnected');
+    } catch (disconnectError) {
+      console.error('Error disconnecting from database:', disconnectError);
+    }
   }
 }

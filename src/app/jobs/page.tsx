@@ -1,201 +1,167 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useDropzone } from 'react-dropzone';
+import { useState } from 'react';
+import Card from '@/components/ui/Card';
+import Input from '@/components/ui/Input';
+import Button from '@/components/ui/Button';
 
 interface Job {
   id: string;
   title: string;
-  description: string;
-  noc: string;
-  teerLevel: number;
-  salary: number | null;
-  isRemote: boolean;
   location: string;
   employer: {
     name: string;
-    community: {
-      name: string;
-      province: string;
-    };
   };
+  salary?: string;
+  noc?: string;
+  teer?: string;
 }
 
-export default function JobFinder() {
+export default function JobsPage() {
+  const [isLoading, setIsLoading] = useState(false);
   const [jobs, setJobs] = useState<Job[]>([]);
-  const [loading, setLoading] = useState(false);
   const [filters, setFilters] = useState({
-    query: '',
+    title: '',
     location: '',
     teerLevel: '',
-    remote: false,
     noc: '',
-  });
-  const [resume, setResume] = useState<File | null>(null);
-  const [selectedJob, setSelectedJob] = useState<string | null>(null);
-  const [matchScore, setMatchScore] = useState<{ score: number; feedback: string } | null>(null);
-
-  const { getRootProps, getInputProps } = useDropzone({
-    accept: {
-      'application/pdf': ['.pdf'],
-      'application/msword': ['.doc'],
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
-    },
-    maxFiles: 1,
-    onDrop: (acceptedFiles) => {
-      setResume(acceptedFiles[0]);
-    },
+    isRemote: false,
   });
 
-  useEffect(() => {
-    fetchJobs();
-  }, [filters]);
-
-  const fetchJobs = async () => {
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
     try {
-      setLoading(true);
-      const queryParams = new URLSearchParams(filters as any);
-      const response = await fetch(`/api/jobs?${queryParams}`);
+      const response = await fetch('/api/jobs/search', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(filters),
+      });
+      if (!response.ok) throw new Error('Failed to fetch jobs');
       const data = await response.json();
-      setJobs(data.jobs);
+      setJobs(data);
     } catch (error) {
       console.error('Error fetching jobs:', error);
     } finally {
-      setLoading(false);
-    }
-  };
-
-  const calculateMatch = async (jobId: string) => {
-    if (!resume) return;
-
-    try {
-      const formData = new FormData();
-      formData.append('resume', resume);
-      formData.append('jobId', jobId);
-
-      const response = await fetch('/api/jobs', {
-        method: 'POST',
-        body: formData,
-      });
-
-      const data = await response.json();
-      setMatchScore(data);
-      setSelectedJob(jobId);
-    } catch (error) {
-      console.error('Error calculating match:', error);
+      setIsLoading(false);
     }
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <h1 className="text-3xl font-bold mb-8">RCIP Job & Employer Finder</h1>
-      
-      {/* Filters */}
-      <div className="bg-white p-6 rounded-lg shadow mb-8">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <input
-            type="text"
-            placeholder="Search jobs..."
-            className="border rounded p-2"
-            value={filters.query}
-            onChange={(e) => setFilters({ ...filters, query: e.target.value })}
-          />
-          <input
-            type="text"
-            placeholder="Location"
-            className="border rounded p-2"
-            value={filters.location}
-            onChange={(e) => setFilters({ ...filters, location: e.target.value })}
-          />
-          <select
-            className="border rounded p-2"
-            value={filters.teerLevel}
-            onChange={(e) => setFilters({ ...filters, teerLevel: e.target.value })}
-          >
-            <option value="">All TEER Levels</option>
-            <option value="0">TEER 0</option>
-            <option value="1">TEER 1</option>
-            <option value="2">TEER 2</option>
-            <option value="3">TEER 3</option>
-          </select>
-        </div>
-        
-        <div className="mt-4 flex items-center">
-          <label className="flex items-center mr-4">
-            <input
-              type="checkbox"
-              checked={filters.remote}
-              onChange={(e) => setFilters({ ...filters, remote: e.target.checked })}
-              className="mr-2"
-            />
-            Remote Only
-          </label>
-          <input
-            type="text"
-            placeholder="NOC Code"
-            className="border rounded p-2 w-32"
-            value={filters.noc}
-            onChange={(e) => setFilters({ ...filters, noc: e.target.value })}
-          />
-        </div>
-      </div>
+    <div className="min-h-screen bg-gray-900 py-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="space-y-10">
+          {/* Header */}
+          <div className="text-center">
+            <h1 className="text-4xl font-bold text-white mb-4">
+              RCIP Job Search
+            </h1>
+            <p className="text-xl text-gray-300">
+              Find RCIP-eligible jobs in participating communities
+            </p>
+          </div>
 
-      {/* Resume Upload */}
-      <div className="bg-white p-6 rounded-lg shadow mb-8">
-        <h2 className="text-xl font-semibold mb-4">Upload Resume for AI Match Score</h2>
-        <div {...getRootProps()} className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer">
-          <input {...getInputProps()} />
-          <p>{resume ? resume.name : 'Drag & drop your resume here, or click to select'}</p>
-        </div>
-      </div>
-
-      {/* Job Listings */}
-      <div className="space-y-6">
-        {loading ? (
-          <div className="text-center">Loading jobs...</div>
-        ) : jobs.length === 0 ? (
-          <div className="text-center">No jobs found</div>
-        ) : (
-          jobs.map((job) => (
-            <div key={job.id} className="bg-white p-6 rounded-lg shadow">
-              <div className="flex justify-between items-start">
-                <div>
-                  <h3 className="text-xl font-semibold">{job.title}</h3>
-                  <p className="text-gray-600">{job.employer.name} - {job.employer.community.name}, {job.employer.community.province}</p>
-                  <div className="mt-2 space-x-2">
-                    <span className="inline-block bg-gray-100 px-2 py-1 rounded text-sm">NOC: {job.noc}</span>
-                    <span className="inline-block bg-gray-100 px-2 py-1 rounded text-sm">TEER {job.teerLevel}</span>
-                    {job.isRemote && (
-                      <span className="inline-block bg-green-100 px-2 py-1 rounded text-sm">Remote</span>
-                    )}
-                    {job.salary && (
-                      <span className="inline-block bg-gray-100 px-2 py-1 rounded text-sm">
-                        ${job.salary.toLocaleString()} /year
-                      </span>
-                    )}
-                  </div>
-                </div>
-                {resume && (
-                  <button
-                    onClick={() => calculateMatch(job.id)}
-                    className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-500"
-                  >
-                    Calculate Match
-                  </button>
-                )}
+          {/* Search Form */}
+          <Card className="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50">
+            <form onSubmit={handleSearch} className="space-y-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Input
+                  label="Job Title"
+                  placeholder="e.g. Software Developer"
+                  value={filters.title}
+                  onChange={(e) => setFilters({ ...filters, title: e.target.value })}
+                  icon={
+                    <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                  }
+                />
+                <Input
+                  label="Location"
+                  placeholder="e.g. Thunder Bay"
+                  value={filters.location}
+                  onChange={(e) => setFilters({ ...filters, location: e.target.value })}
+                  icon={
+                    <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                  }
+                />
+                <Input
+                  label="TEER Level"
+                  type="number"
+                  min="0"
+                  max="5"
+                  placeholder="0-5"
+                  value={filters.teerLevel}
+                  onChange={(e) => setFilters({ ...filters, teerLevel: e.target.value })}
+                  icon={
+                    <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                  }
+                />
+                <Input
+                  label="NOC Code"
+                  placeholder="e.g. 21231"
+                  value={filters.noc}
+                  onChange={(e) => setFilters({ ...filters, noc: e.target.value })}
+                  icon={
+                    <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
+                    </svg>
+                  }
+                />
               </div>
-              
-              <p className="mt-4">{job.description}</p>
-              
-              {selectedJob === job.id && matchScore && (
-                <div className="mt-4 p-4 bg-gray-50 rounded">
-                  <h4 className="font-semibold">AI Match Score: {matchScore.score}%</h4>
-                  <p className="mt-2 text-sm">{matchScore.feedback}</p>
-                </div>
-              )}
+
+              <div className="flex items-center justify-between pt-4 border-t border-gray-700/50">
+                <label className="flex items-center space-x-3 text-gray-300">
+                  <input
+                    type="checkbox"
+                    className="form-checkbox h-5 w-5 rounded border-gray-600 bg-gray-700 text-indigo-500 
+                             focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-800
+                             transition-colors duration-200"
+                    checked={filters.isRemote}
+                    onChange={(e) => setFilters({ ...filters, isRemote: e.target.checked })}
+                  />
+                  <span className="text-base">Remote Only</span>
+                </label>
+                <Button
+                  type="submit"
+                  isLoading={isLoading}
+                  className="px-8 py-3 text-base font-medium"
+                >
+                  Search Jobs
+                </Button>
+              </div>
+            </form>
+          </Card>
+
+          {/* Results */}
+          {jobs.length === 0 && !isLoading && (
+            <div className="text-center py-16 bg-gray-800/50 backdrop-blur-sm rounded-xl border border-gray-700/50">
+              <svg
+                className="mx-auto h-12 w-12 text-gray-400"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
+                />
+              </svg>
+              <p className="mt-4 text-lg text-gray-300">
+                No jobs found. Try adjusting your search criteria.
+              </p>
             </div>
-          ))
-        )}
+          )}
+        </div>
       </div>
     </div>
   );
